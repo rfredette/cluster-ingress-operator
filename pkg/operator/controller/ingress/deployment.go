@@ -8,7 +8,6 @@ import (
 	"hash/fnv"
 	"net"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,10 +73,6 @@ const (
 	RouterHAProxyThreadsDefaultValue = 4
 
 	WorkloadPartitioningManagement = "target.workload.openshift.io/management"
-)
-
-var (
-	HAProxyTimespecRegex = regexp.MustCompile("[0-9]+(?:[um]?s|[mhd])?")
 )
 
 // ensureRouterDeployment ensures the router deployment exists for a given
@@ -185,15 +180,6 @@ func HardStopAfterIsEnabled(ic *operatorv1.IngressController, ingressConfig *con
 		return controllerAnnotation, controllerValue
 	}
 	return HardStopAfterIsEnabledByAnnotation(ingressConfig.Annotations)
-}
-
-// HAProxyTimespec returns the first substring from `input` that matches the
-// HAProxy time format. HAProxy expects time as a set of digits, optionally
-// followed by one of the following time units: us, ms, s, m, h, or d. If no
-// time unit is specified, ms is assumed.
-// TODO: Is this redundant with clipHAProxyTimeoutValue()?
-func HAProxyTimespec(input string) string {
-	return HAProxyTimespecRegex.FindString(input)
 }
 
 // desiredRouterDeployment returns the desired router deployment.
@@ -496,20 +482,47 @@ func desiredRouterDeployment(ci *operatorv1.IngressController, ingressController
 	}
 	env = append(env, corev1.EnvVar{Name: RouterHAProxyThreadsEnvName, Value: strconv.Itoa(threads)})
 
-	if len(ci.Spec.TuningOptions.ClientTimeout) > 0 {
-		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_CLIENT_TIMEOUT", Value: HAProxyTimespec(ci.Spec.TuningOptions.ClientTimeout)})
+	if ci.Spec.TuningOptions.ClientTimeout.Duration != 0*time.Second {
+		if clientTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ClientTimeout.String()); err == nil {
+			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_CLIENT_TIMEOUT", Value: clientTimeout})
+		} else {
+			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.clientTimeout: %v", err)
+		}
 	}
-	if len(ci.Spec.TuningOptions.ClientFinTimeout) > 0 {
-		env = append(env, corev1.EnvVar{Name: "ROUTER_CLIENT_FIN_TIMEOUT", Value: HAProxyTimespec(ci.Spec.TuningOptions.ClientFinTimeout)})
+	if ci.Spec.TuningOptions.ClientFinTimeout.Duration != 0*time.Second {
+		if clientFinTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ClientFinTimeout.String()); err == nil {
+			env = append(env, corev1.EnvVar{Name: "ROUTER_CLIENT_FIN_TIMEOUT", Value: clientFinTimeout})
+		} else {
+			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.clientFinTimeout: %v", err)
+		}
 	}
-	if len(ci.Spec.TuningOptions.ServerTimeout) > 0 {
-		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_TIMEOUT", Value: HAProxyTimespec(ci.Spec.TuningOptions.ServerTimeout)})
+	if ci.Spec.TuningOptions.ServerTimeout.Duration != 0*time.Second {
+		if serverTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ServerTimeout.String()); err == nil {
+			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_TIMEOUT", Value: serverTimeout})
+		} else {
+			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.serverTimeout: %v", err)
+		}
 	}
-	if len(ci.Spec.TuningOptions.ServerFinTimeout) > 0 {
-		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_FIN_TIMEOUT", Value: HAProxyTimespec(ci.Spec.TuningOptions.ServerFinTimeout)})
+	if ci.Spec.TuningOptions.ServerFinTimeout.Duration != 0*time.Second {
+		if serverFinTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ServerFinTimeout.String()); err == nil {
+			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_FIN_TIMEOUT", Value: serverFinTimeout})
+		} else {
+			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.serverFinTimeout: %v", err)
+		}
 	}
-	if len(ci.Spec.TuningOptions.TLSInspectDelay) > 0 {
-		env = append(env, corev1.EnvVar{Name: "ROUTER_INSPECT_DELAY", Value: HAProxyTimespec(ci.Spec.TuningOptions.TLSInspectDelay)})
+	if ci.Spec.TuningOptions.TunnelTimeout.Duration != 0*time.Second {
+		if tunnelTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.TunnelTimeout.String()); err == nil {
+			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_TUNNEL_TIMEOUT", Value: tunnelTimeout})
+		} else {
+			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.tunnelTimeout: %v", err)
+		}
+	}
+	if ci.Spec.TuningOptions.TLSInspectDelay.Duration != 0*time.Second {
+		if inspectDelay, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.TLSInspectDelay.String()); err == nil {
+			env = append(env, corev1.EnvVar{Name: "ROUTER_INSPECT_DELAY", Value: inspectDelay})
+		} else {
+			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.tlsInspectDelay: %v", err)
+		}
 	}
 
 	nodeSelector := map[string]string{
