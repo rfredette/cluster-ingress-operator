@@ -307,6 +307,13 @@ func TestDesiredRouterDeployment(t *testing.T) {
 
 	checkDeploymentHasEnvVar(t, deployment, RouterHAProxyThreadsEnvName, true, strconv.Itoa(RouterHAProxyThreadsDefaultValue))
 
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_CLIENT_TIMEOUT", false, "")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_CLIENT_FIN_TIMEOUT", false, "")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_SERVER_TIMEOUT", false, "")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_SERVER_FIN_TIMEOUT", false, "")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_TUNNEL_TIMEOUT", false, "")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_INSPECT_DELAY", false, "")
+
 	ci.Spec.Logging = &operatorv1.IngressControllerLogging{
 		Access: &operatorv1.AccessLogging{
 			Destination: operatorv1.LoggingDestination{
@@ -336,6 +343,12 @@ func TestDesiredRouterDeployment(t *testing.T) {
 		HeaderBufferMaxRewriteBytes: 4096,
 		ThreadCount:                 RouterHAProxyThreadsDefaultValue * 2,
 	}
+	ci.Spec.TuningOptions.ClientTimeout = metav1.Duration{45 * time.Second}
+	ci.Spec.TuningOptions.ClientFinTimeout = metav1.Duration{3 * time.Second}
+	ci.Spec.TuningOptions.ServerTimeout = metav1.Duration{60 * time.Second}
+	ci.Spec.TuningOptions.ServerFinTimeout = metav1.Duration{4 * time.Second}
+	ci.Spec.TuningOptions.TunnelTimeout = metav1.Duration{30 * time.Minute}
+	ci.Spec.TuningOptions.TLSInspectDelay = metav1.Duration{5 * time.Second}
 	ci.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
 		Type: configv1.TLSProfileCustomType,
 		Custom: &configv1.CustomTLSProfile{
@@ -428,6 +441,13 @@ func TestDesiredRouterDeployment(t *testing.T) {
 	checkDeploymentHasEnvVar(t, deployment, "SSL_MIN_VERSION", true, "TLSv1.2")
 
 	checkDeploymentHasEnvVar(t, deployment, "ROUTER_IP_V4_V6_MODE", true, "v4v6")
+
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_CLIENT_TIMEOUT", true, "45s")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_CLIENT_FIN_TIMEOUT", true, "3s")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_SERVER_TIMEOUT", true, "1m")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_SERVER_FIN_TIMEOUT", true, "4s")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_DEFAULT_TUNNEL_TIMEOUT", true, "30m")
+	checkDeploymentHasEnvVar(t, deployment, "ROUTER_INSPECT_DELAY", true, "5s")
 
 	// Any value for loadBalancingAlgorithm other than "leastconn" should be
 	// ignored.

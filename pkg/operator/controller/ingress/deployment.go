@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"math"
 	"net"
 	"path/filepath"
 	"sort"
@@ -483,46 +484,22 @@ func desiredRouterDeployment(ci *operatorv1.IngressController, ingressController
 	env = append(env, corev1.EnvVar{Name: RouterHAProxyThreadsEnvName, Value: strconv.Itoa(threads)})
 
 	if ci.Spec.TuningOptions.ClientTimeout.Duration != 0*time.Second {
-		if clientTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ClientTimeout.String()); err == nil {
-			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_CLIENT_TIMEOUT", Value: clientTimeout})
-		} else {
-			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.clientTimeout: %v", err)
-		}
+		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_CLIENT_TIMEOUT", Value: durationToHAProxyTimespec(ci.Spec.TuningOptions.ClientTimeout.Duration)})
 	}
 	if ci.Spec.TuningOptions.ClientFinTimeout.Duration != 0*time.Second {
-		if clientFinTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ClientFinTimeout.String()); err == nil {
-			env = append(env, corev1.EnvVar{Name: "ROUTER_CLIENT_FIN_TIMEOUT", Value: clientFinTimeout})
-		} else {
-			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.clientFinTimeout: %v", err)
-		}
+		env = append(env, corev1.EnvVar{Name: "ROUTER_CLIENT_FIN_TIMEOUT", Value: durationToHAProxyTimespec(ci.Spec.TuningOptions.ClientFinTimeout.Duration)})
 	}
 	if ci.Spec.TuningOptions.ServerTimeout.Duration != 0*time.Second {
-		if serverTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ServerTimeout.String()); err == nil {
-			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_TIMEOUT", Value: serverTimeout})
-		} else {
-			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.serverTimeout: %v", err)
-		}
+		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_TIMEOUT", Value: durationToHAProxyTimespec(ci.Spec.TuningOptions.ServerTimeout.Duration)})
 	}
 	if ci.Spec.TuningOptions.ServerFinTimeout.Duration != 0*time.Second {
-		if serverFinTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.ServerFinTimeout.String()); err == nil {
-			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_FIN_TIMEOUT", Value: serverFinTimeout})
-		} else {
-			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.serverFinTimeout: %v", err)
-		}
+		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_SERVER_FIN_TIMEOUT", Value: durationToHAProxyTimespec(ci.Spec.TuningOptions.ServerFinTimeout.Duration)})
 	}
 	if ci.Spec.TuningOptions.TunnelTimeout.Duration != 0*time.Second {
-		if tunnelTimeout, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.TunnelTimeout.String()); err == nil {
-			env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_TUNNEL_TIMEOUT", Value: tunnelTimeout})
-		} else {
-			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.tunnelTimeout: %v", err)
-		}
+		env = append(env, corev1.EnvVar{Name: "ROUTER_DEFAULT_TUNNEL_TIMEOUT", Value: durationToHAProxyTimespec(ci.Spec.TuningOptions.TunnelTimeout.Duration)})
 	}
 	if ci.Spec.TuningOptions.TLSInspectDelay.Duration != 0*time.Second {
-		if inspectDelay, err := clipHAProxyTimeoutValue(ci.Spec.TuningOptions.TLSInspectDelay.String()); err == nil {
-			env = append(env, corev1.EnvVar{Name: "ROUTER_INSPECT_DELAY", Value: inspectDelay})
-		} else {
-			return nil, fmt.Errorf("Failed to parse spec.tuningOptions.tlsInspectDelay: %v", err)
-		}
+		env = append(env, corev1.EnvVar{Name: "ROUTER_INSPECT_DELAY", Value: durationToHAProxyTimespec(ci.Spec.TuningOptions.TLSInspectDelay.Duration)})
 	}
 
 	nodeSelector := map[string]string{
@@ -1346,4 +1323,30 @@ func clipHAProxyTimeoutValue(val string) (string, error) {
 		}
 	}
 	return val, nil
+}
+
+// durationToHAProxyTimespec converts a time.Duration into a number that
+// HAProxy can consume, in the simplest unit possible. If the value would be
+// truncated by being converted to seconds, it outputs in milliseconds,
+// otherwise if the value wouldn't be truncated by converting to seconds, but
+// would if converted to minutes, it outputs in seconds, etc. up to a maximum
+// unit in hours (the largest unit natively supported by time.Duration).
+//
+// Also truncates values to the maximum length HAProxy allows if the value is
+// too large.
+func durationToHAProxyTimespec(duration time.Duration) string {
+	haproxyMaxTimeoutMilliseconds := int64(2147483647)
+	durationMilliseconds := duration.Milliseconds()
+	if durationMilliseconds > haproxyMaxTimeoutMilliseconds {
+		log.V(7).Info("Time value %s exceeds the maximum timeout length of %dms. Truncating timeout to match maximum value.", duration.String(), haproxyMaxTimeoutMilliseconds)
+		return "2147483647ms"
+	} else if durationMilliseconds%time.Second.Milliseconds() != 0 {
+		return fmt.Sprintf("%dms", durationMilliseconds)
+	} else if durationMilliseconds%time.Minute.Milliseconds() != 0 {
+		return fmt.Sprintf("%ds", int(math.Round(duration.Seconds())))
+	} else if durationMilliseconds%time.Hour.Milliseconds() != 0 {
+		return fmt.Sprintf("%dm", int(math.Round(duration.Minutes())))
+	} else {
+		return fmt.Sprintf("%dh", int(math.Round(duration.Hours())))
+	}
 }
