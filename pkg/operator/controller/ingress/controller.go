@@ -1032,6 +1032,12 @@ func (r *reconciler) ensureIngressController(ci *operatorv1.IngressController, d
 		errs = append(errs, err)
 	}
 
+	if _, _, err := r.ensureTrustedCAConfigMap(); err != nil {
+		// Like the service CA configmap, if the trusted CA configmap isn't created yet, the deployment can be created
+		// but pods won't start until the trusted CA configmap exists.
+		errs = append(errs, err)
+	}
+
 	var haveClientCAConfigmap bool
 	clientCAConfigmap := &corev1.ConfigMap{}
 	if len(ci.Spec.ClientTLS.ClientCA.Name) != 0 {

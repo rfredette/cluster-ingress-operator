@@ -408,7 +408,7 @@ func TestDesiredRouterDeploymentSpecTemplate(t *testing.T) {
 			if volume.Secret.SecretName != secretName {
 				t.Errorf("router Deployment expected volume %s to have secret %s, got %s", volume.Name, secretName, volume.Secret.SecretName)
 			}
-		} else if volume.Name != "service-ca-bundle" {
+		} else if volume.Name != "service-ca-bundle" && volume.Name != "trusted-ca" {
 			t.Errorf("router deployment has unexpected volume %s", volume.Name)
 		}
 	}
@@ -546,8 +546,8 @@ func TestDesiredRouterDeploymentSpecAndNetwork(t *testing.T) {
 		t.Errorf("expected empty startup probe host, got %q", deployment.Spec.Template.Spec.Containers[0].StartupProbe.ProbeHandler.HTTPGet.Host)
 	}
 
-	if len(deployment.Spec.Template.Spec.Containers[0].VolumeMounts) <= 4 || deployment.Spec.Template.Spec.Containers[0].VolumeMounts[4].Name != "error-pages" {
-		t.Errorf("deployment.Spec.Template.Spec.Containers[0].VolumeMounts[4].Name %v", deployment.Spec.Template.Spec.Containers[0].VolumeMounts)
+	if len(deployment.Spec.Template.Spec.Containers[0].VolumeMounts) <= 5 || deployment.Spec.Template.Spec.Containers[0].VolumeMounts[5].Name != "error-pages" {
+		t.Errorf("deployment.Spec.Template.Spec.Containers[0].VolumeMounts[5].Name %v", deployment.Spec.Template.Spec.Containers[0].VolumeMounts)
 		//log.Info(fmt.Sprintf("deployment.Spec.Template.Spec.Containers[0].VolumeMounts[4].Name %v", deployment.Spec.Template.Spec.Containers[0]))
 		t.Error("router Deployment is missing error code pages volume mount")
 	}
@@ -778,7 +778,7 @@ func TestDesiredRouterDeploymentVariety(t *testing.T) {
 			if volume.Secret.SecretName != secretName {
 				t.Errorf("router Deployment expected volume %s to have secret %s, got %s", volume.Name, secretName, volume.Secret.SecretName)
 			}
-		} else if volume.Name != "service-ca-bundle" && volume.Name != "error-pages" {
+		} else if volume.Name != "service-ca-bundle" && volume.Name != "trusted-ca" && volume.Name != "error-pages" {
 			t.Errorf("router deployment has unexpected volume %s", volume.Name)
 		}
 	}

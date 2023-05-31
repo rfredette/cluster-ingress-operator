@@ -55,6 +55,9 @@ spec:
           - mountPath: /var/run/configmaps/service-ca
             name: service-ca-bundle
             readOnly: true
+          - name: trusted-ca
+            mountPath: /etc/pki/ca-trust/extracted/pem
+            readOnly: true
       volumes:
       - name: default-certificate
         secret:
@@ -67,4 +70,11 @@ spec:
             path: service-ca.crt
           name: service-ca-bundle
           optional: false
+        defaultMode: 420
+      - name: trusted-ca
+        configMap:
+          name: trusted-ca
+          items:
+            - key: ca-bundle.crt
+              path: tls-ca-bundle.pem
         defaultMode: 420

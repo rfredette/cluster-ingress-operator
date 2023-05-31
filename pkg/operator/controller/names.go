@@ -191,6 +191,13 @@ func ServiceCAConfigMapName() types.NamespacedName {
 	}
 }
 
+func TrustedCAConfigMapName() types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: DefaultOperandNamespace,
+		Name:      "trusted-ca",
+	}
+}
+
 func IngressControllerDeploymentLabel(ic *operatorv1.IngressController) string {
 	return ic.Name
 }
